@@ -58,14 +58,50 @@ variable "computer_name" {
 
 }
 
-# Admin User名
+# VM Admin User名
 variable "admin_username" {
 
   default = "azureuser"
 
 }
 
-# Admin Password
+# VM Admin Password
 variable "admin_password" {
+
+}
+
+# PostgreSQLサーバー名
+variable "postgresql_server_name" {
+
+  default = "mcclaytest-pg-server"
+
+}
+
+# PostgreSQLログインユーザー名
+variable "administrator_login" {
+
+}
+
+# PostgreSQLログインユーザーPW
+variable "administrator_login_password" {
+
+}
+
+# PostgreSQLバージョン
+variable "postgresql_version" {
+
+  default = "11"
+}
+
+# PostgreSQL　sku名
+variable "postgresql_sku_name" {
+
+  default = "B_Gen5_1"
+}
+
+# PostgreSQL db名
+variable "azurerm_postgresql_database" {
+
+  default = "postgresql-db"
 
 }

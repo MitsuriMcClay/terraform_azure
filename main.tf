@@ -1,15 +1,18 @@
-# #----------------------------------------
-# # リソースグループの作成
-# #----------------------------------------
-# resource "azurerm_resource_group" "mcclay-rg" {
-#   name     = var.azurerm_resource_group
-#   location = var.location
-# }
+#----------------------------------------
+# リソースグループの作成
+#----------------------------------------
+resource "azurerm_resource_group" "mcclay-rg" {
+  name     = var.azurerm_resource_group
+  location = var.location
+}
 
 #----------------------------------------
 # Virtual Networkの作成
 #----------------------------------------
 resource "azurerm_virtual_network" "mcclay_net" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg
+  ]
   #force_destroy       = true
   name                = var.virtual_network_name
   address_space       = ["10.0.0.0/16"]
@@ -22,6 +25,10 @@ resource "azurerm_virtual_network" "mcclay_net" {
 # Subnetの作成
 #----------------------------------------
 resource "azurerm_subnet" "mcclay-subnet" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net
+  ]
   count = 2
   #name = "subnet-1"
   name                = "subnet-${count.index + 1}"
@@ -37,7 +44,12 @@ resource "azurerm_subnet" "mcclay-subnet" {
 # Public IPの作成
 #----------------------------------------
 resource "azurerm_public_ip" "pub-ip" {
-  name                = var.azurerm_public_ip
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net
+  ]
+  count               = 2
+  name                = "pub-ip-${count.index + 1}"
   location            = var.location
   resource_group_name = var.azurerm_resource_group
   #resource_group_name = azurerm_resource_group.mcclay-rg.name
@@ -52,6 +64,8 @@ resource "azurerm_network_interface" "mcclay-nic" {
   name                = "mcclay-nic-${count.index + 1}"
   location            = var.location
   resource_group_name = var.azurerm_resource_group
+  #delete_on_termination = true
+  #create_before_destroy = true
   #resource_group_name = azurerm_resource_group.mcclay-rg.name
   #network_security_group_id = var.azurerm_network_security_group
 
@@ -59,7 +73,7 @@ resource "azurerm_network_interface" "mcclay-nic" {
     name                          = "ip-config"
     subnet_id                     = azurerm_subnet.mcclay-subnet[count.index].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.pub-ip.id
+    public_ip_address_id          = azurerm_public_ip.pub-ip[count.index].id
     #public_ip_address_id = azurerm_public_ip.pub-ip.id
   }
 }
@@ -68,6 +82,10 @@ resource "azurerm_network_interface" "mcclay-nic" {
 # Networkセキュリティグループの作成
 #----------------------------------------
 resource "azurerm_network_security_group" "networksg" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net
+  ]
   name                = "mcclaynsg"
   location            = var.location
   resource_group_name = var.azurerm_resource_group
@@ -110,6 +128,10 @@ resource "azurerm_network_interface_security_group_association" "mcclay-test" {
 # Virtual Machines作成
 #----------------------------------------
 resource "azurerm_virtual_machine" "test-vms" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net
+  ]
   count               = 2
   name                = "mcclay-vm-${count.index + 1}"
   location            = var.location
@@ -145,6 +167,44 @@ resource "azurerm_virtual_machine" "test-vms" {
   }
 }
 
-output "resource_group_string" {
-  value = var.azurerm_resource_group
+#----------------------------------------
+# Azure Database for PostgreSQLサーバの作成
+#----------------------------------------
+resource "azurerm_postgresql_server" "mcclaytest-pg-server" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net,
+    azurerm_network_interface_security_group_association.mcclay-test
+  ]
+  name                = var.postgresql_server_name
+  resource_group_name = var.azurerm_resource_group
+  location            = var.location
+
+  administrator_login          = var.administrator_login
+  administrator_login_password = var.administrator_login_password
+
+  sku_name = var.postgresql_sku_name
+  version  = var.postgresql_version
+
+  storage_mb = 5120
+
+  public_network_access_enabled    = true
+  ssl_enforcement_enabled          = true
+  ssl_minimal_tls_version_enforced = "TLS1_2"
+}
+
+#----------------------------------------
+# Azure Database for PostgreSQL データベースの作成
+#----------------------------------------
+resource "azurerm_postgresql_database" "pg-db" {
+  depends_on = [
+    azurerm_resource_group.mcclay-rg,
+    azurerm_virtual_network.mcclay_net,
+    azurerm_postgresql_server.mcclaytest-pg-server
+  ]
+  name                = var.azurerm_postgresql_database
+  resource_group_name = var.azurerm_resource_group
+  server_name         = var.postgresql_server_name
+  charset             = "utf8"
+  collation           = "Japanese_Japan.932"
 }
